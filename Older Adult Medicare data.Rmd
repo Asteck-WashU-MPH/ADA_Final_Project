@@ -1,0 +1,34 @@
+---
+title: "Older Adult Medicare data"
+author: "Anna Steck"
+date: "2026-10-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+#Git hub: 
+```{r}
+install.packages("usethis")
+usethis::use_git()
+```
+
+```{r}
+Medicare_Survey<- read.csv("https://raw.githubusercontent.com/Asteck-WashU-MPH/Rurality-and-Influenza-vaccination/refs/heads/main/sfpuf2023_3_summer.csv")
+
+Winter_file<- read.csv("C:/Users/acste/OneDrive/Documents/sfpuf2023_2_winter.csv")
+```
+
+#Testing ID number merge: 
+
+```{r}
+library(dplyr)
+merged <- full_join(Medicare_Survey, Winter_file, by = "PUF_ID")
+
+n_common <- length(intersect(Medicare_Survey$PUF_ID, Winter_file$PUF_ID))
+cat("Common IDs:", n_common, "\n")
+
+write.csv(merged, "merged.csv")
+
+```
