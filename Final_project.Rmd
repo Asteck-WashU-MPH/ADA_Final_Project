@@ -1,0 +1,296 @@
+---
+title: "Final_project"
+author: "Anna Steck"
+date: "2026-11-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Packates needed
+```{r}
+library(dplyr)
+```
+
+#Upload data to the global environment. 
+#We are using the summer and winter surveys from the Medicare Beneficiaries survey
+```{r}
+winter<- read.csv("https://raw.githubusercontent.com/Asteck-WashU-MPH/ADA_Final_Project/refs/heads/main/sfpuf2023_2_winter.csv")
+summer<- read.csv("https://raw.githubusercontent.com/Asteck-WashU-MPH/ADA_Final_Project/refs/heads/main/sfpuf2023_3_summer.csv")
+fall<- read.csv("https://raw.githubusercontent.com/Asteck-WashU-MPH/ADA_Final_Project/refs/heads/main/sfpuf2023_1_fall.csv")
+```
+
+#Check the datasets
+```{r}
+anyDuplicated(winter$PUF_ID)    
+anyDuplicated(summer$PUF_ID)  
+anyDuplicated(fall$PUF_ID)
+
+common_ids <- Reduce(intersect, list(summer$PUF_ID, winter$PUF_ID, fall$PUF_ID))
+length(common_ids)
+```
+#Merge the winter and summer datasets
+```{r}
+Merged <-merge(winter, summer, by = "PUF_ID")
+
+merged<- merge(Merged, fall, by= "PUF_ID")
+
+```
+
+#Select the needed variables so that it is more usable
+```{r}
+select<- merged %>% select(PUF_ID, DEM_CBSA, #metro area
+                           PVS_FLUSHOT, #flushot
+                           DEM_IPR_IND, #poverty ratio category
+                           DEM_SEX, #male or female
+                           DEM_RACE, #race category
+                           DEM_AGE, #age group
+                           DEM_EDU, #education category
+                           HLT_DTBLGTPL, #Has trouble getting places
+                           HLT_FUNC_LIM #IADLs and ADLs
+                           )
+```
+
+#Check the available data for missingness
+```{r}
+sum(!complete.cases(select))          # number of responses with at least one NA
+mean(!complete.cases(select)) * 100   # as a percentage
+sum(complete.cases(select))           # number of fully complete responses
+```
+#Hooray- still have a really good number of cases
+
+#Rename the variables so that it is less confusing
+```{r}
+select_rename<- select %>%
+  rename(flu_shot= PVS_FLUSHOT,metro_cat= DEM_CBSA, poverty_cat= DEM_IPR_IND,sex= DEM_SEX, race_cat= DEM_RACE,age= DEM_AGE, edu_cat= DEM_EDU, transport_cat= HLT_DTBLGTPL, disabled_cat= HLT_FUNC_LIM)
+```
+
+#Check flu vaccine data
+```{r}
+table(select_rename$flu_shot, useNA = "ifany")
+class(select_rename$flu_shot)
+```
+It is a character variable and we want 0s and 1s so we are recoding based on the code book. 
+
+#Convert vaccine variable to be 1 for vaccine, 0 for non-vaccine, and NA for "don't know" 
+```{r}
+clean_variables <- select_rename %>%
+  mutate(flu_shot = case_when(
+    flu_shot == "1" ~ 1,
+    flu_shot == "2" ~ 0,
+    TRUE           ~ NA_real_    
+  ))
+
+#sanity check 
+class(clean_variables$flu_shot)                  
+table(clean_variables$flu_shot, useNA = "ifany")
+```
+The class says numeric which is what we want and the categories match up pretty closely with the code book so that makes sense as well. 
+
+#Check metro residence variable
+```{r}
+table(clean_variables$metro_cat, useNA = "ifany")
+class(clean_variables$metro_cat)
+```
+The "exposure" we are looking at is living in a rural place so we will code non-metro as 1 and metro as 0. 
+
+#Recode metro residence: 
+```{r}
+clean_variables<- clean_variables %>% 
+  mutate(metro_cat = case_when(
+    metro_cat == "1" ~ 0,
+    metro_cat == "2" ~ 1,
+    TRUE           ~ NA_real_    
+  ))
+
+#sanity check 
+class(clean_variables$metro_cat)                  
+table(clean_variables$metro_cat, useNA = "ifany")
+```
+Looks good
+
+#Check poverty variable
+```{r}
+table(clean_variables$poverty_cat, useNA = "ifany")
+class(clean_variables$poverty_cat)
+```
+#Clean poverty variable so that it is numeric and the highest income group is the reference
+```{r}
+clean_variables<- clean_variables %>% 
+  mutate(poverty_cat = case_when(
+    poverty_cat == "1" ~ 4,
+    poverty_cat == "2" ~ 3,
+    poverty_cat == "3" ~ 2,
+    poverty_cat == "4" ~ 1,
+    poverty_cat == "5" ~ 0,
+    TRUE           ~ NA_real_    
+  ))
+
+#sanity check 
+class(clean_variables$poverty_cat)                  
+table(clean_variables$poverty_cat, useNA = "ifany")
+```
+#categories: 
+#4: <=100% of the Federal Poverty Level                                     
+#3: >100% and <=120% of the Federal Poverty                                 
+#2: >120% and <=135% of the Federal Poverty                                 
+#1: >135% and <=200% of the Federal Poverty                                 
+#0: >200% of the Federal Poverty Level 
+
+#check race variable
+```{r}
+table(clean_variables$race_cat, useNA = "ifany")
+class(clean_variables$race_cat)
+```
+#clean race variable to be numeric with non-hispanic white as the reference group
+```{r}
+clean_variables<- clean_variables %>% 
+  mutate(race_cat = case_when(
+    race_cat == "1" ~ 0,
+    race_cat == "2" ~ 1,
+    race_cat == "3" ~ 2,
+    race_cat == "4" ~ 3,
+    TRUE           ~ NA_real_    
+  ))
+
+#sanity check 
+class(clean_variables$race_cat)                  
+table(clean_variables$race_cat, useNA = "ifany")
+```
+0:Non-Hispanic white                                                       
+1:Non-Hispanic black                                                       
+2:Hispanic                                                                 
+3:Other
+
+#Check sex variable: 
+```{r}
+table(clean_variables$sex, useNA = "ifany")
+class(clean_variables$sex)
+```
+#Make male 0 and female 1 and convert to numeric variable
+```{r}
+clean_variables<- clean_variables %>% 
+  mutate(sex = case_when(
+    sex == "1" ~ 0,
+    sex == "2" ~ 1,
+
+    TRUE           ~ NA_real_    
+  ))
+
+#sanity check 
+class(clean_variables$sex)                  
+table(clean_variables$sex, useNA = "ifany")
+```
+#Check age variable:
+```{r}
+table(clean_variables$age, useNA = "ifany")
+class(clean_variables$age)
+```
+#correct age variable: Exclude those under 65
+```{r}
+clean_variables <- clean_variables %>%
+  filter(age != 1)
+```
+
+#change age category based on the two groups: 
+```{r}
+clean_variables<- clean_variables %>% 
+  mutate(age = case_when(
+    age == "2" ~ 0,
+    age == "3" ~ 1,
+
+    TRUE           ~ NA_real_    
+  ))
+
+#sanity check 
+class(clean_variables$age)                  
+table(clean_variables$age, useNA = "ifany")
+```
+0:Age 65-74 years                                                          
+1:Age 75+ years 
+
+#check education variable: 
+```{r}
+table(clean_variables$edu_cat, useNA = "ifany")
+class(clean_variables$edu_cat)
+```
+#Create NA out of don't know or refused. : 
+```{r}
+clean_variables<- clean_variables %>% 
+  mutate(edu_cat = case_when(
+    edu_cat == "1" ~ 0,
+    edu_cat == "2" ~ 1,
+    edu_cat == "3" ~ 2,
+    TRUE           ~ NA_real_    
+  ))
+
+#sanity check 
+class(clean_variables$edu_cat)                  
+table(clean_variables$edu_cat, useNA = "ifany")
+```
+0:Less than high school                                                    
+1:High school or vocational/technical/business                             
+2:More than high school
+
+#Check transportation variable: 
+```{r}
+table(clean_variables$transport_cat, useNA = "ifany")
+class(clean_variables$transport_cat)
+```
+#Make don't know into NA, Make the exposure of "Yes" to has trouble getting places 1, and "no"=0
+```{r}
+clean_variables<- clean_variables %>% 
+  mutate(transport_cat = case_when(
+    transport_cat == "1" ~ 1,
+    transport_cat == "2" ~ 0,
+    TRUE           ~ NA_real_    
+  ))
+
+#sanity check 
+class(clean_variables$transport_cat)                  
+table(clean_variables$transport_cat, useNA = "ifany")
+```
+#Check disability categories: 
+```{r}
+table(clean_variables$disabled_cat, useNA = "ifany")
+class(clean_variables$disabled_cat)
+```
+#Create binary variable: 1=disability, 2=no disability. 
+```{r}
+clean_variables<- clean_variables %>% 
+  mutate(disabled_bin = case_when(
+    disabled_cat == "0" ~ 0,
+    disabled_cat == "1" ~ 1,
+    disabled_cat == "2" ~ 1,
+    disabled_cat == "3" ~ 1,
+    disabled_cat == "4" ~ 1,
+    TRUE           ~ NA_real_    
+  ))
+
+#sanity check 
+class(clean_variables$disabled_bin)                  
+table(clean_variables$disabled_bin, useNA = "ifany")
+```
+#Make second variable that accounts for variation in disability. 
+```{r}
+clean_variables<- clean_variables %>% 
+  mutate(disabled_cat = case_when(
+    disabled_cat == "0" ~ 0,
+    disabled_cat == "1" ~ 1,
+    disabled_cat == "2" ~ 2,
+    disabled_cat == "3" ~ 3,
+    disabled_cat == "4" ~ 4,
+    TRUE           ~ NA_real_    
+  ))
+
+#sanity check 
+class(clean_variables$disabled_cat)                  
+table(clean_variables$disabled_cat, useNA = "ifany")
+```
+#Rename final dataset for analysis: 
+```{r}
+clean_medicare<- clean_variables
+```
+
