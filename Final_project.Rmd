@@ -25,7 +25,6 @@ fall<- read.csv("https://raw.githubusercontent.com/Asteck-WashU-MPH/ADA_Final_Pr
 
 #Check the datasets
 ```{r}
-  
 anyDuplicated(summer$PUF_ID)  
 anyDuplicated(fall$PUF_ID)
 
@@ -58,7 +57,6 @@ sum(!complete.cases(select))          # number of responses with at least one NA
 mean(!complete.cases(select)) * 100   # as a percentage
 sum(complete.cases(select))           # number of fully complete responses
 ```
-#Hooray- still have a really good number of cases
 
 #Rename the variables so that it is less confusing
 ```{r}
@@ -293,6 +291,9 @@ table(clean_variables$disabled_cat, useNA = "ifany")
 clean_medicare<- clean_variables
 
 rm(clean_variables, fall, merged, select, select_rename, summer, common_ids)
+
+write.csv(clean_medicare, "clean_medicare.csv", row.names = FALSE)
+
 ```
 #Un-adjusted logistic regression: 
 ```{r}
@@ -321,6 +322,7 @@ vif(Aim1_adj)
 Aim2<- glm(flu_shot ~ metro_cat+ sex+ age+ poverty_cat+ race_cat+ edu_cat+ metro_cat*transport_cat, data=clean_medicare, family="binomial")
 
 summary(Aim2) 
+odds.n.ends(Aim2)
 ```
 
 #Aim 3
@@ -328,8 +330,9 @@ summary(Aim2)
 Aim3<- glm(flu_shot ~ sex+ age+ poverty_cat+ race_cat+ edu_cat+ metro_cat*disabled_bin, data=clean_medicare, family="binomial")
 
 summary(Aim3) 
+odds.n.ends(Aim3)
 ```
-#Aim 3 with multiple disability categories
+#Aim 3 with multiple disability categories just to check if it has a different result. 
 ```{r}
 Aim3_multi<- glm(flu_shot ~ sex+ age+ poverty_cat+ race_cat+ edu_cat+ metro_cat*disabled_cat, data=clean_medicare, family="binomial")
 
